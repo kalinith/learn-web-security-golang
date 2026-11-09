@@ -5,6 +5,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 )
 
 const signedDownloadTTL = 5 * time.Minute
@@ -15,14 +20,31 @@ func CreateSignedDownloadPath(signingKey [32]byte, fileID int64, now time.Time) 
 	return fmt.Sprintf("/files/%d/signed-download?expires=%d&signature=%s", fileID, expires, signature)
 }
 
-func VerifySignedDownload(_ [32]byte, _ int64, expiresValue, signature string, now time.Time) bool {
+func VerifySignedDownload(signingKey [32]byte, fileID int64, expiresValue, signature string, now time.Time) bool {
 	if expiresValue == "" || strings.Trim(expiresValue, "0123456789") != "" || len(signature) != 64 {
 		return false
 	}
 	expires, err := strconv.ParseInt(expiresValue, 10, 64)
-	return err == nil && expires > now.Unix()
+	if err != nil {
+		return false
+	}
+	expectedSignature := signDownload(signingKey, fileID, expires)
+	signatureBytes, err := hex.DecodeString(signature)
+	if err != nil {
+		return false
+	}
+	expectedSignatureBytes, err := hex.DecodeString(expectedSignature)
+	if err != nil {
+		return false
+	}
+	if subtle.ConstantTimeCompare(signatureBytes, expectedSignatureBytes) != 1 {
+		return false
+	}
+	return expires > now.Unix()
 }
 
-func signDownload(_ [32]byte, _, _ int64) string {
-	return strings.Repeat("0", 64)
+func signDownload(signingKey [32]byte, fileID, expires int64) string {
+	mac := hmac.New(sha256.New, signingKey[:])
+	mac.Write([]byte(fmt.Sprintf("GET\n/files/%d/signed-download\n%d", fileID, expires)))
+	return hex.EncodeToString(mac.Sum(nil))
 }
