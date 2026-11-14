@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path/filepath"
 	"strings"
+	"uuid"
 
 	"github.com/bootdotdev/learn-web-security/internal/identifiers"
 )
@@ -95,15 +95,17 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 		if err != nil {
 			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Choose a valid ZIP archive.", StatusCode: 400}
 		}
-		contentType := mime.TypeByExtension(filepath.Ext(entry.Name))
-		if contentType == "" {
-			contentType = "application/octet-stream"
+		contentType, fileExtension, found := detectDocumentType(entryContents)
+		if !found {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Archive contains unsupported file type.", StatusCode: 400}
 		}
 		storedContents, encrypted, err := encryptDocument(entryContents, encryptionKeyring)
 		if err != nil {
 			return ExtractedTaxDocumentArchive{}, err
 		}
-		storagePath := entryDestination
+		storageFileName := uuid.NewV4().String()
+		storagePath := filepath.Join(importDirectory, storageFileName+fileExtension)
+
 		if encrypted {
 			storagePath += ".enc"
 		}
