@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -247,4 +248,34 @@ func boolToInt64(value bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+func clientCrossSiteCheck(trustedOrigin string, renderer *templates.Renderer) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+			if request.Method != http.MethodPost /* || request.Method == http.MethodHead */ {
+				next.ServeHTTP(responseWriter, request)
+				return
+			}
+			origin := request.Header.Get("Origin")
+			if origin == "" {
+				refer := request.Header.Get("Referer")
+				if refer == "" {
+					httpx.RespondWithErrorPage(responseWriter, renderer, http.StatusForbidden, "Cross-Site Request Blocked", "Missing Origin and Referer headers")
+					return
+				}
+				parsedRefer, err := url.Parse(refer)
+				if err != nil || parsedRefer.Scheme == "" || parsedRefer.Host == "" {
+					httpx.RespondWithErrorPage(responseWriter, renderer, http.StatusForbidden, "Cross-Site Request Blocked", fmt.Sprintf("Invalid Referer header: %s", refer))
+					return
+				}
+				origin = parsedRefer.Scheme + "://" + parsedRefer.Host
+			}
+			if !strings.EqualFold(origin, trustedOrigin) {
+				httpx.RespondWithErrorPage(responseWriter, renderer, http.StatusForbidden, "Cross-Site Request Blocked", fmt.Sprintf("Invalid Origin header: %s", origin))
+				return
+			}
+			next.ServeHTTP(responseWriter, request)
+		})
+	}
 }
