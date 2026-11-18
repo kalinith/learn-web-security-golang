@@ -60,6 +60,15 @@ func cspNonce(next http.Handler) http.Handler {
 	})
 }
 
+func setCSPHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		//Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
+		cspHeaderValue := "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; connect-src 'self'"
+		responseWriter.Header().Set("Content-Security-Policy", cspHeaderValue)
+		next.ServeHTTP(responseWriter, request)
+	})
+}
+
 func recoverPanics(logger *logging.Logger, renderer *templates.Renderer) middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
