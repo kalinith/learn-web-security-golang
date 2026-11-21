@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultPort                = 3030
-	defaultAttackerLabPort     = 4040
+	defaultAttackerLabPort     = 3040
 	defaultAppOrigin           = "http://localhost:3030"
 	defaultDatabaseFilename    = "bearly-secure.sqlite"
 	MaxRequestBodyBytes        = 32 * 1024
